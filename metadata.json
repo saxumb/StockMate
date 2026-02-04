@@ -1,0 +1,5 @@
+{
+  "name": "StockMate AI",
+  "description": "Un'applicazione avanzata che utilizza l'IA di Gemini con Google Search per analizzare azioni e fornire consigli tempestivi su quando comprare, basandosi su dati di mercato in tempo reale e news.",
+  "requestFramePermissions": []
+}
