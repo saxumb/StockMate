@@ -2,7 +2,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// Sostituisci 'NOME-REPO' con il nome del tuo repository GitHub per il deploy corretto
 export default defineConfig({
   plugins: [react()],
   define: {
