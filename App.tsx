@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, TrendingUp, ShieldAlert, BarChart2, LayoutGrid, Clock, ChevronRight, AlertTriangle, Sparkles, Globe, Zap, Bell, BellRing, RefreshCcw } from 'lucide-react';
+import { Search, TrendingUp, ShieldAlert, BarChart2, LayoutGrid, Clock, ChevronRight, AlertTriangle, Sparkles, Globe, Zap, Bell, BellRing, RefreshCcw, Download } from 'lucide-react';
 import { GeminiStockService } from './services/geminiService';
 import { StockAnalysis, WatchlistEntry, TimeHorizon, DiscoveryResult } from './types';
 import AnalysisView from './components/AnalysisView';
@@ -21,6 +21,8 @@ const App: React.FC = () => {
   const [hasAcceptedDisclaimer, setHasAcceptedDisclaimer] = useState<boolean | null>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstallable, setIsInstallable] = useState(false);
   
   const service = useRef(new GeminiStockService()).current;
   const monitorInterval = useRef<number | null>(null);
@@ -45,7 +47,29 @@ const App: React.FC = () => {
 
     const savedRecent = localStorage.getItem('stockmate_recent');
     if (savedRecent) setRecentSearches(JSON.parse(savedRecent));
+
+    // PWA Install Logic
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setIsInstallable(true);
+    });
+
+    window.addEventListener('appinstalled', () => {
+      setIsInstallable(false);
+      setDeferredPrompt(null);
+    });
   }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setIsInstallable(false);
+      setDeferredPrompt(null);
+    }
+  };
 
   useEffect(() => {
     localStorage.setItem('stockmate_watchlist', JSON.stringify(watchlist));
@@ -59,11 +83,9 @@ const App: React.FC = () => {
     localStorage.setItem('stockmate_notif_enabled', notificationsEnabled.toString());
     
     if (notificationsEnabled && !monitorInterval.current) {
-      // Monitoraggio ogni 15 minuti se abilitato
       monitorInterval.current = window.setInterval(() => {
         autoRefreshWatchlist();
       }, 15 * 60 * 1000);
-      // Esegui subito un refresh iniziale se attivato
       autoRefreshWatchlist();
     } else if (!notificationsEnabled && monitorInterval.current) {
       clearInterval(monitorInterval.current);
@@ -108,7 +130,6 @@ const App: React.FC = () => {
         const oldSignal = updatedWatchlist[i].lastSignal;
         const result = await service.analyzeStock(updatedWatchlist[i].symbol, 'MEDIUM_LONG');
         
-        // Notifica su cambio segnale
         if (result.signal !== oldSignal) {
           sendPushNotification(
             `Cambio Segnale: ${result.symbol}`,
@@ -116,7 +137,6 @@ const App: React.FC = () => {
             result.isStrong
           );
         } 
-        // Notifica su segnale "Strong" rilevato (anche se il tipo di segnale è uguale, es. passa da Buy a Strong Buy)
         else if (result.isStrong && (result.signal === 'BUY' || result.signal === 'SELL')) {
           sendPushNotification(
              `Opportunità Forte: ${result.symbol}`,
@@ -235,6 +255,14 @@ const App: React.FC = () => {
           </div>
           <div className="hidden md:flex items-center gap-6 text-sm font-semibold text-slate-400">
             <button onClick={clearResults} className="hover:text-white transition-colors">Home</button>
+            {isInstallable && (
+              <button 
+                onClick={handleInstallClick}
+                className="flex items-center gap-2 bg-blue-500/10 text-blue-400 border border-blue-500/30 px-4 py-1.5 rounded-xl hover:bg-blue-500/20 transition-all"
+              >
+                <Download size={16} /> Installa App
+              </button>
+            )}
             <button 
               onClick={requestNotificationPermission} 
               className={`flex items-center gap-2 transition-colors ${notificationsEnabled ? 'text-blue-400' : 'hover:text-white'}`}
