@@ -10,15 +10,22 @@ export class GeminiStockService {
   }
 
   async discoverOpportunities(horizon: TimeHorizon): Promise<DiscoveryResult[]> {
-    const horizonLabel = horizon === 'MEDIUM_LONG' ? 'Medio-Lungo Periodo' : 'Breve Periodo';
+    const labels = {
+      INTRADAY: 'Trading Intraday (Day Trading)',
+      SHORT: 'Breve Periodo (Swing Trading)',
+      MEDIUM_LONG: 'Medio-Lungo Periodo (Investing)'
+    };
+    
+    const horizonLabel = labels[horizon];
     const prompt = `Usa Google Search per identificare le 4 migliori opportunità di investimento attuali nel mercato azionario globale per un orizzonte di ${horizonLabel}.
     Analizza news di oggi, trend di settore (es. AI, Energy, Tech) e raccomandazioni recenti degli analisti.
+    Per Intraday, cerca azioni con alta volatilità o volumi anomali nelle ultime ore.
     
     Restituisci ESCLUSIVAMENTE un array JSON di 4 oggetti con:
     - symbol: il ticker esatto (es. NVDA, ENI.MI)
     - companyName: nome dell'azienda
     - briefReasoning: una sintesi estrema del perché è interessante (max 15 parole)
-    - potentialReason: una categoria come "Growth", "Value", "Momentum" o "Recovery"`;
+    - potentialReason: una categoria come "Growth", "Value", "Momentum", "Volatility" o "Recovery"`;
 
     const response = await this.ai.models.generateContent({
       model: "gemini-3-flash-preview",
@@ -46,28 +53,33 @@ export class GeminiStockService {
   }
 
   async analyzeStock(symbol: string, horizon: TimeHorizon = 'SHORT'): Promise<StockAnalysis> {
-    const horizonContext = horizon === 'MEDIUM_LONG' 
-      ? "focalizzandoti sul MEDIO-LUNGO PERIODO (6-24 mesi). Cerca segnali di valore fondamentale, crescita sostenibile e trend macroeconomici."
-      : "focalizzandoti sul BREVE PERIODO. Guarda i movimenti recenti e il momentum attuale.";
+    let horizonContext = "";
+    if (horizon === 'INTRADAY') {
+      horizonContext = "focalizzandoti sul TRADING INTRADAY. Analizza i movimenti delle ULTIME ORE, volatilità attuale, RSI su timeframe brevi, volumi e news dell'ULTIMA ORA.";
+    } else if (horizon === 'MEDIUM_LONG') {
+      horizonContext = "focalizzandoti sul MEDIO-LUNGO PERIODO (6-24 mesi). Cerca segnali di valore fondamentale, crescita sostenibile e trend macroeconomici.";
+    } else {
+      horizonContext = "focalizzandoti sul BREVE PERIODO (Swing trading). Guarda i movimenti recenti di questa settimana e il momentum attuale.";
+    }
 
     const prompt = `Analizza l'azione con ticker "${symbol}" ${horizonContext}
     Usa Google Search per trovare:
-    1. Prezzo attuale e variazioni recenti.
-    2. News recenti che influenzano l'azienda.
-    3. Analisi tecnica (trend, supporti/resistenze).
-    4. Sentiment di mercato e fondamentali.
+    1. Prezzo attuale e variazioni REAL-TIME.
+    2. News dell'ultima ora o catalizzatori odierni.
+    3. Analisi tecnica specifica per l'orizzonte scelto.
+    4. Sentiment istantaneo.
 
     Determina se è il momento di COMPRARE (BUY), VENDERE (SELL), o TENERE (HOLD).
     Fornisci la risposta in formato JSON strutturato con questi campi:
     - companyName: Nome completo dell'azienda
     - signal: Uno tra "BUY", "SELL", "HOLD"
     - price: Prezzo attuale con valuta
-    - change: Variazione percentuale recente
-    - reasoning: Spiegazione dettagliata della decisione (minimo 3-4 frasi)
-    - technicalAnalysis: Dettagli tecnici
-    - sentiment: Descrizione del sentiment (es. Bullish, Bearish, Neutrale)
+    - change: Variazione percentuale odierna
+    - reasoning: Spiegazione dettagliata della decisione
+    - technicalAnalysis: Dettagli tecnici (RSI, Supporti, Volatilità)
+    - sentiment: Descrizione del sentiment attuale
     
-    Sii molto critico e prudente, specialmente per il lungo periodo.`;
+    Sii estremamente prudente per l'intraday data l'alta volatilità.`;
 
     const response = await this.ai.models.generateContent({
       model: "gemini-3-flash-preview",

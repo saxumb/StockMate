@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect } from 'react';
-import { Search, TrendingUp, ShieldAlert, BarChart2, Zap, LayoutGrid, Clock, ChevronRight, AlertTriangle, Sparkles, Globe } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Search, TrendingUp, ShieldAlert, BarChart2, LayoutGrid, Clock, ChevronRight, AlertTriangle, Sparkles, Globe, Zap, Bell, BellRing } from 'lucide-react';
 import { GeminiStockService } from './services/geminiService';
 import { StockAnalysis, WatchlistEntry, TimeHorizon, DiscoveryResult } from './types';
 import AnalysisView from './components/AnalysisView';
@@ -19,8 +19,10 @@ const App: React.FC = () => {
   const [watchlist, setWatchlist] = useState<WatchlistEntry[]>([]);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [hasAcceptedDisclaimer, setHasAcceptedDisclaimer] = useState<boolean | null>(null);
-
-  const service = new GeminiStockService();
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  
+  const service = useRef(new GeminiStockService()).current;
+  const monitorInterval = useRef<number | null>(null);
 
   useEffect(() => {
     const accepted = localStorage.getItem('stockmate_disclaimer_accepted');
@@ -34,6 +36,12 @@ const App: React.FC = () => {
         console.error("Failed to parse watchlist", e);
       }
     }
+    
+    const savedNotif = localStorage.getItem('stockmate_notif_enabled');
+    if (savedNotif === 'true' && Notification.permission === 'granted') {
+      setNotificationsEnabled(true);
+    }
+
     const savedRecent = localStorage.getItem('stockmate_recent');
     if (savedRecent) setRecentSearches(JSON.parse(savedRecent));
   }, []);
@@ -45,6 +53,77 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('stockmate_recent', JSON.stringify(recentSearches));
   }, [recentSearches]);
+
+  useEffect(() => {
+    localStorage.setItem('stockmate_notif_enabled', notificationsEnabled.toString());
+    
+    if (notificationsEnabled && !monitorInterval.current) {
+      // Avvia monitoraggio ogni 15 minuti se abilitato
+      monitorInterval.current = window.setInterval(() => {
+        autoRefreshWatchlist();
+      }, 15 * 60 * 1000);
+    } else if (!notificationsEnabled && monitorInterval.current) {
+      clearInterval(monitorInterval.current);
+      monitorInterval.current = null;
+    }
+
+    return () => {
+      if (monitorInterval.current) clearInterval(monitorInterval.current);
+    };
+  }, [notificationsEnabled]);
+
+  const sendPushNotification = (title: string, body: string) => {
+    if (Notification.permission === 'granted') {
+      new Notification(title, {
+        body,
+        icon: 'https://cdn-icons-png.flaticon.com/512/2620/2620400.png'
+      });
+    }
+  };
+
+  const requestNotificationPermission = async () => {
+    if (Notification.permission !== 'granted') {
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        setNotificationsEnabled(true);
+        sendPushNotification("StockMate AI", "Notifiche push attivate con successo!");
+      }
+    } else {
+      setNotificationsEnabled(!notificationsEnabled);
+    }
+  };
+
+  const autoRefreshWatchlist = async () => {
+    if (watchlist.length === 0) return;
+    
+    const updatedWatchlist = [...watchlist];
+    for (let i = 0; i < updatedWatchlist.length; i++) {
+      try {
+        const oldSignal = updatedWatchlist[i].lastSignal;
+        const result = await service.analyzeStock(updatedWatchlist[i].symbol, 'MEDIUM_LONG');
+        
+        if (result.signal !== oldSignal) {
+          sendPushNotification(
+            `Cambio Segnale: ${result.symbol}`,
+            `L'azione ${result.companyName} è passata da ${oldSignal} a ${result.signal}. Prezzo: ${result.price}`
+          );
+        } else if (result.signal === 'BUY' || result.signal === 'SELL') {
+          // Alert per segnali forti persistenti
+          console.log(`Segnale confermato per ${result.symbol}: ${result.signal}`);
+        }
+
+        updatedWatchlist[i] = {
+          ...updatedWatchlist[i],
+          lastSignal: result.signal,
+          lastPrice: result.price,
+          addedAt: new Date().toLocaleDateString('it-IT')
+        };
+      } catch (e) {
+        console.error(`Error auto-refreshing ${updatedWatchlist[i].symbol}`, e);
+      }
+    }
+    setWatchlist(updatedWatchlist);
+  };
 
   const handleAcceptDisclaimer = () => {
     localStorage.setItem('stockmate_disclaimer_accepted', 'true');
@@ -107,21 +186,7 @@ const App: React.FC = () => {
   const refreshWatchlist = async () => {
     if (watchlist.length === 0) return;
     setLoading(true);
-    const updatedWatchlist = [...watchlist];
-    for (let i = 0; i < updatedWatchlist.length; i++) {
-      try {
-        const result = await service.analyzeStock(updatedWatchlist[i].symbol, 'MEDIUM_LONG');
-        updatedWatchlist[i] = {
-          ...updatedWatchlist[i],
-          lastSignal: result.signal,
-          lastPrice: result.price,
-          addedAt: new Date().toLocaleDateString('it-IT')
-        };
-      } catch (e) {
-        console.error(`Error refreshing ${updatedWatchlist[i].symbol}`, e);
-      }
-    }
-    setWatchlist(updatedWatchlist);
+    await autoRefreshWatchlist();
     setLoading(false);
   };
 
@@ -154,8 +219,15 @@ const App: React.FC = () => {
               <span className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em]">Data Analysis Tool</span>
             </div>
           </div>
-          <div className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-400">
+          <div className="hidden md:flex items-center gap-6 text-sm font-semibold text-slate-400">
             <button onClick={clearResults} className="hover:text-white transition-colors">Home</button>
+            <button 
+              onClick={requestNotificationPermission} 
+              className={`flex items-center gap-2 transition-colors ${notificationsEnabled ? 'text-blue-400' : 'hover:text-white'}`}
+            >
+              {notificationsEnabled ? <BellRing size={16} className="animate-bounce" /> : <Bell size={16} />} 
+              {notificationsEnabled ? 'Avvisi On' : 'Attiva Avvisi'}
+            </button>
             <button onClick={refreshWatchlist} className="hover:text-white transition-colors flex items-center gap-2">
               <Clock size={16} /> Monitoraggio
             </button>
@@ -200,6 +272,12 @@ const App: React.FC = () => {
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Orizzonte:</span>
                 <div className="flex bg-slate-800/50 p-1 rounded-xl border border-slate-700/50">
                   <button 
+                    onClick={() => setHorizon('INTRADAY')}
+                    className={`flex items-center gap-1 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${horizon === 'INTRADAY' ? 'bg-fuchsia-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
+                  >
+                    <Zap size={12} /> Intraday
+                  </button>
+                  <button 
                     onClick={() => setHorizon('SHORT')}
                     className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${horizon === 'SHORT' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
                   >
@@ -209,7 +287,7 @@ const App: React.FC = () => {
                     onClick={() => setHorizon('MEDIUM_LONG')}
                     className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${horizon === 'MEDIUM_LONG' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
                   >
-                    Medio-Lungo
+                    M-Lungo
                   </button>
                 </div>
               </div>
@@ -222,7 +300,7 @@ const App: React.FC = () => {
                 className="flex items-center gap-2 text-blue-400 hover:text-blue-300 font-bold text-sm transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
               >
                 <Globe size={18} />
-                Scansiona Mercato Globale
+                Discovery
                 <Sparkles size={16} className="text-yellow-400 animate-pulse" />
               </button>
             </div>
@@ -252,7 +330,7 @@ const App: React.FC = () => {
                 </h3>
                 <p className="text-slate-500 max-w-xs mx-auto text-sm leading-relaxed">
                   {discovering 
-                    ? `L'AI sta scansionando i settori più caldi per il ${horizon === 'MEDIUM_LONG' ? 'Medio-Lungo' : 'Breve'} periodo...`
+                    ? `L'AI sta scansionando i settori più caldi per il ${horizon} periodo...`
                     : "Analizzando news di oggi, report finanziari e sentiment per fornirti un quadro accurato."}
                 </p>
               </div>
@@ -271,7 +349,10 @@ const App: React.FC = () => {
         {discoveryResults && !discovering && (
           <DiscoveryView 
             results={discoveryResults} 
-            onSelect={(s) => handleSearch(undefined, s)} 
+            onSelect={(s) => {
+                setSymbol(s);
+                handleSearch(undefined, s);
+            }} 
           />
         )}
 
@@ -283,6 +364,8 @@ const App: React.FC = () => {
               onSelect={(s) => handleSearch(undefined, s)}
               onRefreshAll={refreshWatchlist}
               isRefreshing={loading}
+              notificationsEnabled={notificationsEnabled}
+              onToggleNotifications={requestNotificationPermission}
             />
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-16">
@@ -297,9 +380,9 @@ const App: React.FC = () => {
                 desc="Comprendi l'opinione del mercato scansionando le ultime testate finanziarie globali."
               />
               <FeatureCard 
-                icon={<Clock className="text-indigo-400" />}
-                title="Data-Driven Insights"
-                desc="Utilizza l'IA per riassumere trend complessi in segnali chiari di supporto alla decisione."
+                icon={<Zap className="text-fuchsia-400" />}
+                title="Intraday Flash"
+                desc="Individua opportunità immediate basate su volatilità e news dell'ultima ora."
               />
             </div>
           </>

@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { StockAnalysis, RecommendationType } from '../types';
-import { TrendingUp, TrendingDown, Minus, Info, ExternalLink, Calendar, DollarSign, Activity, Bell, BellOff, Clock } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, Info, ExternalLink, Calendar, DollarSign, Activity, Bell, BellOff, Clock, Zap } from 'lucide-react';
 
 interface AnalysisViewProps {
   analysis: StockAnalysis;
@@ -39,6 +39,11 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ analysis, isWatched, onTogg
             {analysis.horizon === 'MEDIUM_LONG' && (
               <span className="flex items-center gap-1 bg-indigo-500/20 text-indigo-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-indigo-500/30 uppercase tracking-tighter">
                 <Clock size={10} /> Lungo Periodo
+              </span>
+            )}
+            {analysis.horizon === 'INTRADAY' && (
+              <span className="flex items-center gap-1 bg-fuchsia-500/20 text-fuchsia-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-fuchsia-500/30 uppercase tracking-tighter">
+                <Zap size={10} /> Intraday Flash
               </span>
             )}
           </div>

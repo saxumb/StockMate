@@ -1,6 +1,6 @@
 
 export type RecommendationType = 'BUY' | 'SELL' | 'HOLD' | 'NEUTRAL';
-export type TimeHorizon = 'SHORT' | 'MEDIUM_LONG';
+export type TimeHorizon = 'INTRADAY' | 'SHORT' | 'MEDIUM_LONG';
 
 export interface GroundingSource {
   title: string;
