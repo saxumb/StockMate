@@ -48,7 +48,6 @@ const App: React.FC = () => {
     const savedRecent = localStorage.getItem('stockmate_recent');
     if (savedRecent) setRecentSearches(JSON.parse(savedRecent));
 
-    // PWA Install Logic
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
       setDeferredPrompt(e);
@@ -171,6 +170,7 @@ const App: React.FC = () => {
 
     setLoading(true);
     setDiscoveryResults(null);
+    setAnalysis(null);
     setError(null);
     try {
       const result = await service.analyzeStock(targetSymbol.trim(), horizon);
@@ -180,7 +180,7 @@ const App: React.FC = () => {
       }
     } catch (err: any) {
       console.error(err);
-      setError("Impossibile analizzare l'azione. Verifica il ticker o la connessione.");
+      setError(err.message || "Impossibile analizzare l'azione. Verifica il ticker o la connessione.");
     } finally {
       setLoading(false);
     }
@@ -194,8 +194,8 @@ const App: React.FC = () => {
     try {
       const results = await service.discoverOpportunities(horizon);
       setDiscoveryResults(results);
-    } catch (err) {
-      setError("Errore durante la scansione globale. Riprova tra poco.");
+    } catch (err: any) {
+      setError(err.message || "Errore durante la scansione globale. Riprova tra poco.");
     } finally {
       setDiscovering(false);
     }
@@ -236,7 +236,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen pb-20 selection:bg-blue-500/30">
+    <div className="min-h-screen pb-20 selection:bg-blue-500/30 text-slate-200">
       <div className="fixed inset-0 overflow-hidden pointer-events-none opacity-20 z-[-1]">
         <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-600 rounded-full blur-[140px]" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-indigo-600 rounded-full blur-[140px]" />
@@ -244,7 +244,7 @@ const App: React.FC = () => {
 
       <header className="pt-12 pb-8 px-6 max-w-7xl mx-auto">
         <nav className="flex justify-between items-center mb-16">
-          <div className="flex items-center gap-3" onClick={clearResults} style={{ cursor: 'pointer' }}>
+          <div className="flex items-center gap-3 cursor-pointer" onClick={clearResults}>
             <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-blue-500/30">
               <TrendingUp className="text-white" size={28} />
             </div>
@@ -260,7 +260,7 @@ const App: React.FC = () => {
                 onClick={handleInstallClick}
                 className="flex items-center gap-2 bg-blue-500/10 text-blue-400 border border-blue-500/30 px-4 py-1.5 rounded-xl hover:bg-blue-500/20 transition-all"
               >
-                <Download size={16} /> Installa App
+                <Download size={16} /> Installa
               </button>
             )}
             <button 
@@ -295,7 +295,7 @@ const App: React.FC = () => {
                 type="text"
                 value={symbol}
                 onChange={(e) => setSymbol(e.target.value)}
-                placeholder="Inserisci Ticker (es. ENI.MI, AAPL)..."
+                placeholder="Inserisci Ticker (es. ENI.MI, AAPL, OKLO)..."
                 className="w-full bg-slate-800/40 border border-slate-700/60 rounded-3xl py-6 px-8 pl-16 text-white focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all text-xl shadow-3xl backdrop-blur-md"
                 disabled={loading || discovering}
               />
@@ -351,19 +351,13 @@ const App: React.FC = () => {
       </header>
 
       <main className="px-6 max-w-7xl mx-auto">
-        {isSyncing && (
-          <div className="fixed bottom-6 left-6 z-[60] animate-in slide-in-from-left-4 fade-in duration-500">
-             <div className="bg-slate-900/90 backdrop-blur-md border border-blue-500/30 rounded-2xl px-4 py-3 shadow-2xl flex items-center gap-3">
-                <RefreshCcw size={16} className="text-blue-400 animate-spin" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">Sincronizzazione Watchlist...</span>
-             </div>
-          </div>
-        )}
-
         {error && (
-          <div className="max-w-2xl mx-auto p-5 bg-rose-500/10 border border-rose-500/20 rounded-3xl flex items-center gap-4 text-rose-400 mb-8">
-            <ShieldAlert size={24} />
-            <span className="font-semibold">{error}</span>
+          <div className="max-w-2xl mx-auto p-6 bg-rose-500/10 border border-rose-500/20 rounded-3xl flex items-start gap-4 text-rose-400 mb-8 animate-in slide-in-from-top-4 duration-300">
+            <ShieldAlert size={24} className="shrink-0 mt-1" />
+            <div>
+               <p className="font-bold mb-1">Errore di Analisi</p>
+               <p className="text-sm opacity-90">{error}</p>
+            </div>
           </div>
         )}
 
@@ -380,9 +374,7 @@ const App: React.FC = () => {
                   {discovering ? "Scansione Mercati Globali" : "Analisi Asset in Corso"}
                 </h3>
                 <p className="text-slate-500 max-w-xs mx-auto text-sm leading-relaxed">
-                  {discovering 
-                    ? `L'AI sta scansionando i settori più caldi per il ${horizon} periodo...`
-                    : "Analizzando news di oggi, report finanziari e sentiment per fornirti un quadro accurato."}
+                  L'AI sta interrogando Google Search per news e dati in tempo reale. Potrebbe volerci qualche secondo...
                 </p>
               </div>
             </div>
@@ -422,18 +414,18 @@ const App: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-16">
               <FeatureCard 
                 icon={<BarChart2 className="text-blue-400" />}
-                title="Analisi dei Fondamentali"
-                desc="Esamina i dati finanziari e le performance storiche aggregando fonti autorevoli."
+                title="Analisi Fondamentale"
+                desc="Esamina i dati finanziari aggregando fonti autorevoli in tempo reale."
               />
               <FeatureCard 
                 icon={<LayoutGrid className="text-emerald-400" />}
-                title="Sintesi del Sentiment"
-                desc="Comprendi l'opinione del mercato scansionando le ultime testate finanziarie globali."
+                title="Sentiment Engine"
+                desc="Comprendi l'opinione del mercato scansionando testate finanziarie globali."
               />
               <FeatureCard 
                 icon={<Zap className="text-fuchsia-400" />}
-                title="Intraday Flash"
-                desc="Individua opportunità immediate basate su volatilità e news dell'ultima ora."
+                title="Grounding Search"
+                desc="Ogni consiglio è supportato da fonti web dirette e verificabili."
               />
             </div>
           </>
@@ -446,11 +438,11 @@ const App: React.FC = () => {
             <AlertTriangle size={18} /> Avviso di Rischio e Esclusione di Responsabilità
           </div>
           <p className="text-slate-500 text-[13px] leading-relaxed">
-            StockMate AI è un esperimento tecnologico basato sull'IA di Google Gemini. Le informazioni fornite non costituiscono consulenza finanziaria, raccomandazione di investimento o sollecitazione al pubblico risparmio. L'utente riconosce che il trading di titoli azionari comporta rischi significativi e può portare alla perdita del capitale investito. Le decisioni prese sulla base delle informazioni in questa app sono sotto l'esclusiva responsabilità dell'utente. Lo sviluppatore non è responsabile per eventuali perdite derivanti dall'uso di queste informazioni.
+            StockMate AI è uno strumento tecnologico sperimentale. Le informazioni fornite non costituiscono consulenza finanziaria o raccomandazione di investimento. L'utente riconosce che il trading azionario comporta rischi significativi. Le decisioni prese sulla base di questa app sono sotto l'esclusiva responsabilità dell'utente.
           </p>
         </div>
         <p className="text-slate-600 text-xs">
-          © 2024 StockMate AI Engine. Non siamo consulenti finanziari.
+          © 2024 StockMate AI Engine. Powered by Google Gemini.
         </p>
       </footer>
     </div>
@@ -462,9 +454,6 @@ const FeatureCard: React.FC<{ icon: React.ReactNode, title: string, desc: string
     <div className="mb-6 p-3 bg-slate-800/50 w-fit rounded-2xl group-hover:scale-110 transition-transform">{icon}</div>
     <h3 className="text-xl font-bold text-white mb-3">{title}</h3>
     <p className="text-slate-400 text-sm leading-relaxed font-medium">{desc}</p>
-    <div className="mt-6 flex items-center text-blue-400 text-xs font-bold gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-      Esplora analisi <ChevronRight size={14} />
-    </div>
   </div>
 );
 
