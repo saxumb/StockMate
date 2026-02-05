@@ -49,7 +49,11 @@ export class GeminiStockService {
       },
     });
 
-    return JSON.parse(response.text);
+    const text = response.text;
+    if (!text) {
+      throw new Error("Gemini API non ha restituito alcun contenuto per la scoperta opportunità.");
+    }
+    return JSON.parse(text);
   }
 
   async analyzeStock(symbol: string, horizon: TimeHorizon = 'SHORT'): Promise<StockAnalysis> {
@@ -107,7 +111,11 @@ export class GeminiStockService {
       },
     });
 
-    const resultData = JSON.parse(response.text);
+    const text = response.text;
+    if (!text) {
+      throw new Error("Gemini API non ha restituito alcun contenuto per l'analisi dell'azione.");
+    }
+    const resultData = JSON.parse(text);
     
     const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     const sources = groundingChunks
