@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, TrendingUp, ShieldAlert, BarChart2, LayoutGrid, Clock, ChevronRight, AlertTriangle, Sparkles, Globe, Zap, Bell, BellRing } from 'lucide-react';
+import { Search, TrendingUp, ShieldAlert, BarChart2, LayoutGrid, Clock, ChevronRight, AlertTriangle, Sparkles, Globe, Zap, Bell, BellRing, RefreshCcw } from 'lucide-react';
 import { GeminiStockService } from './services/geminiService';
 import { StockAnalysis, WatchlistEntry, TimeHorizon, DiscoveryResult } from './types';
 import AnalysisView from './components/AnalysisView';
@@ -20,6 +20,7 @@ const App: React.FC = () => {
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [hasAcceptedDisclaimer, setHasAcceptedDisclaimer] = useState<boolean | null>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   
   const service = useRef(new GeminiStockService()).current;
   const monitorInterval = useRef<number | null>(null);
@@ -58,10 +59,12 @@ const App: React.FC = () => {
     localStorage.setItem('stockmate_notif_enabled', notificationsEnabled.toString());
     
     if (notificationsEnabled && !monitorInterval.current) {
-      // Avvia monitoraggio ogni 15 minuti se abilitato
+      // Monitoraggio ogni 15 minuti se abilitato
       monitorInterval.current = window.setInterval(() => {
         autoRefreshWatchlist();
       }, 15 * 60 * 1000);
+      // Esegui subito un refresh iniziale se attivato
+      autoRefreshWatchlist();
     } else if (!notificationsEnabled && monitorInterval.current) {
       clearInterval(monitorInterval.current);
       monitorInterval.current = null;
@@ -72,11 +75,13 @@ const App: React.FC = () => {
     };
   }, [notificationsEnabled]);
 
-  const sendPushNotification = (title: string, body: string) => {
+  const sendPushNotification = (title: string, body: string, isUrgent = false) => {
     if (Notification.permission === 'granted') {
       new Notification(title, {
         body,
-        icon: 'https://cdn-icons-png.flaticon.com/512/2620/2620400.png'
+        icon: 'https://cdn-icons-png.flaticon.com/512/2620/2620400.png',
+        silent: !isUrgent,
+        requireInteraction: isUrgent
       });
     }
   };
@@ -86,7 +91,7 @@ const App: React.FC = () => {
       const permission = await Notification.requestPermission();
       if (permission === 'granted') {
         setNotificationsEnabled(true);
-        sendPushNotification("StockMate AI", "Notifiche push attivate con successo!");
+        sendPushNotification("StockMate AI", "Notifiche push attivate con successo! Verrai avvisato dei cambiamenti importanti.");
       }
     } else {
       setNotificationsEnabled(!notificationsEnabled);
@@ -94,22 +99,30 @@ const App: React.FC = () => {
   };
 
   const autoRefreshWatchlist = async () => {
-    if (watchlist.length === 0) return;
+    if (watchlist.length === 0 || isSyncing) return;
     
+    setIsSyncing(true);
     const updatedWatchlist = [...watchlist];
     for (let i = 0; i < updatedWatchlist.length; i++) {
       try {
         const oldSignal = updatedWatchlist[i].lastSignal;
         const result = await service.analyzeStock(updatedWatchlist[i].symbol, 'MEDIUM_LONG');
         
+        // Notifica su cambio segnale
         if (result.signal !== oldSignal) {
           sendPushNotification(
             `Cambio Segnale: ${result.symbol}`,
-            `L'azione ${result.companyName} è passata da ${oldSignal} a ${result.signal}. Prezzo: ${result.price}`
+            `L'azione ${result.companyName} è passata da ${oldSignal} a ${result.signal}. Prezzo: ${result.price}`,
+            result.isStrong
           );
-        } else if (result.signal === 'BUY' || result.signal === 'SELL') {
-          // Alert per segnali forti persistenti
-          console.log(`Segnale confermato per ${result.symbol}: ${result.signal}`);
+        } 
+        // Notifica su segnale "Strong" rilevato (anche se il tipo di segnale è uguale, es. passa da Buy a Strong Buy)
+        else if (result.isStrong && (result.signal === 'BUY' || result.signal === 'SELL')) {
+          sendPushNotification(
+             `Opportunità Forte: ${result.symbol}`,
+             `Rilevato segnale STRONG ${result.signal} per ${result.companyName}. Prezzo attuale: ${result.price}`,
+             true
+          );
         }
 
         updatedWatchlist[i] = {
@@ -123,6 +136,7 @@ const App: React.FC = () => {
       }
     }
     setWatchlist(updatedWatchlist);
+    setIsSyncing(false);
   };
 
   const handleAcceptDisclaimer = () => {
@@ -309,6 +323,15 @@ const App: React.FC = () => {
       </header>
 
       <main className="px-6 max-w-7xl mx-auto">
+        {isSyncing && (
+          <div className="fixed bottom-6 left-6 z-[60] animate-in slide-in-from-left-4 fade-in duration-500">
+             <div className="bg-slate-900/90 backdrop-blur-md border border-blue-500/30 rounded-2xl px-4 py-3 shadow-2xl flex items-center gap-3">
+                <RefreshCcw size={16} className="text-blue-400 animate-spin" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">Sincronizzazione Watchlist...</span>
+             </div>
+          </div>
+        )}
+
         {error && (
           <div className="max-w-2xl mx-auto p-5 bg-rose-500/10 border border-rose-500/20 rounded-3xl flex items-center gap-4 text-rose-400 mb-8">
             <ShieldAlert size={24} />

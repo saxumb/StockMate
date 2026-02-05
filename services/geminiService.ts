@@ -57,7 +57,7 @@ export class GeminiStockService {
     if (horizon === 'INTRADAY') {
       horizonContext = "focalizzandoti sul TRADING INTRADAY. Analizza i movimenti delle ULTIME ORE, volatilità attuale, RSI su timeframe brevi, volumi e news dell'ULTIMA ORA.";
     } else if (horizon === 'MEDIUM_LONG') {
-      horizonContext = "focalizzandoti sul MEDIO-LUNGO PERIODO (6-24 mesi). Cerca segnali di valore fondamentale, crescita sostenibile e trend macroeconomici.";
+      horizonContext = "focalizzandoti sul MEDio-LUNGO PERIODO (6-24 mesi). Cerca segnali di valore fondamentale, crescita sostenibile e trend macroeconomici.";
     } else {
       horizonContext = "focalizzandoti sul BREVE PERIODO (Swing trading). Guarda i movimenti recenti di questa settimana e il momentum attuale.";
     }
@@ -70,9 +70,12 @@ export class GeminiStockService {
     4. Sentiment istantaneo.
 
     Determina se è il momento di COMPRARE (BUY), VENDERE (SELL), o TENERE (HOLD).
+    Indica se il segnale è molto forte (es. un Strong Buy basato su catalizzatori chiari).
+    
     Fornisci la risposta in formato JSON strutturato con questi campi:
     - companyName: Nome completo dell'azienda
     - signal: Uno tra "BUY", "SELL", "HOLD"
+    - isStrong: booleano, vero se il segnale è particolarmente decisivo/forte
     - price: Prezzo attuale con valuta
     - change: Variazione percentuale odierna
     - reasoning: Spiegazione dettagliata della decisione
@@ -92,13 +95,14 @@ export class GeminiStockService {
           properties: {
             companyName: { type: Type.STRING },
             signal: { type: Type.STRING },
+            isStrong: { type: Type.BOOLEAN },
             price: { type: Type.STRING },
             change: { type: Type.STRING },
             reasoning: { type: Type.STRING },
             technicalAnalysis: { type: Type.STRING },
             sentiment: { type: Type.STRING },
           },
-          required: ["companyName", "signal", "price", "reasoning"]
+          required: ["companyName", "signal", "isStrong", "price", "reasoning"]
         }
       },
     });

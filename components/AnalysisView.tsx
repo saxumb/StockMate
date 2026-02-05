@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { StockAnalysis, RecommendationType } from '../types';
-import { TrendingUp, TrendingDown, Minus, Info, ExternalLink, Calendar, DollarSign, Activity, Bell, BellOff, Clock, Zap } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, Info, ExternalLink, Calendar, DollarSign, Activity, Bell, BellOff, Clock, Zap, ShieldCheck } from 'lucide-react';
 
 interface AnalysisViewProps {
   analysis: StockAnalysis;
@@ -9,10 +9,10 @@ interface AnalysisViewProps {
   onToggleWatch: () => void;
 }
 
-const SignalBadge: React.FC<{ signal: RecommendationType }> = ({ signal }) => {
+const SignalBadge: React.FC<{ signal: RecommendationType, isStrong?: boolean }> = ({ signal, isStrong }) => {
   const configs = {
-    BUY: { label: 'COMPRARE', color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30', icon: TrendingUp },
-    SELL: { label: 'VENDERE', color: 'bg-rose-500/20 text-rose-400 border-rose-500/30', icon: TrendingDown },
+    BUY: { label: isStrong ? 'STRONG BUY' : 'COMPRARE', color: isStrong ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30', icon: TrendingUp },
+    SELL: { label: isStrong ? 'STRONG SELL' : 'VENDERE', color: isStrong ? 'bg-rose-600 text-white border-rose-400' : 'bg-rose-500/20 text-rose-400 border-rose-500/30', icon: TrendingDown },
     HOLD: { label: 'TENERE', color: 'bg-amber-500/20 text-amber-400 border-amber-500/30', icon: Minus },
     NEUTRAL: { label: 'NEUTRO', color: 'bg-slate-500/20 text-slate-400 border-slate-500/30', icon: Minus }
   };
@@ -21,8 +21,8 @@ const SignalBadge: React.FC<{ signal: RecommendationType }> = ({ signal }) => {
   const Icon = config.icon;
 
   return (
-    <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full border ${config.color} font-bold tracking-wide`}>
-      <Icon size={18} />
+    <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full border ${config.color} font-bold tracking-wide transition-all shadow-lg shadow-black/20`}>
+      {isStrong ? <ShieldCheck size={18} className="animate-pulse" /> : <Icon size={18} />}
       <span>{config.label}</span>
     </div>
   );
@@ -85,19 +85,27 @@ const AnalysisView: React.FC<AnalysisViewProps> = ({ analysis, isWatched, onTogg
       {/* Decision Card */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          <div className="glass-card p-8 rounded-3xl border-l-4 border-l-blue-500 shadow-xl">
+          <div className={`glass-card p-8 rounded-3xl border-l-4 shadow-xl ${analysis.isStrong ? 'border-l-emerald-500' : 'border-l-blue-500'}`}>
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-semibold flex items-center gap-2">
                 <Activity className="text-blue-400" />
                 Segnale di Trading
               </h3>
-              <SignalBadge signal={analysis.signal} />
+              <SignalBadge signal={analysis.signal} isStrong={analysis.isStrong} />
             </div>
             
             <div className="space-y-4">
               <p className="text-slate-200 leading-relaxed text-lg font-medium">
                 {analysis.reasoning}
               </p>
+              {analysis.isStrong && (
+                <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-start gap-3">
+                  <ShieldCheck className="text-emerald-400 shrink-0 mt-1" size={20} />
+                  <p className="text-sm text-emerald-300">
+                    L'IA ha rilevato un momentum eccezionale o catalizzatori fondamentali che rendono questo segnale particolarmente affidabile secondo i dati attuali.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 

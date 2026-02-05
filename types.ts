@@ -11,6 +11,7 @@ export interface StockAnalysis {
   symbol: string;
   companyName: string;
   signal: RecommendationType;
+  isStrong?: boolean;
   price: string;
   change: string;
   reasoning: string;
